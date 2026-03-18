@@ -1,0 +1,104 @@
+{
+  "note_title": "7-8月预产期 | 超精简待产包清单 直接📝",
+  "note_id": "67ee6a85000000001d002e1c",
+  "row_count": 15,
+  "summary": {
+    "metrics": {
+      "求电子版/清单": 8,
+      "已关注求发送": 3,
+      "感谢/实用": 0,
+      "发送受阻": 0
+    },
+    "top_repeated_texts": [
+      [
+        "求清单电子版",
+        1
+      ],
+      [
+        "已发",
+        1
+      ],
+      [
+        "已关求电子版清单",
+        1
+      ],
+      [
+        "这是啥软件喃",
+        1
+      ],
+      [
+        "这是一个表格清单",
+        1
+      ],
+      [
+        "求电子清单",
+        1
+      ],
+      [
+        "我想要电子版",
+        1
+      ],
+      [
+        "宝子，g🐷后，一一徊哈",
+        1
+      ],
+      [
+        "已关，求电子版",
+        1
+      ],
+      [
+        "码住了，来奔赴啦，等你呦",
+        1
+      ],
+      [
+        "已赴约宝",
+        1
+      ],
+      [
+        "能分享电子版吗？",
+        1
+      ],
+      [
+        "产房产褥垫一包是几片呀",
+        1
+      ],
+      [
+        "一般是10片。可以屯两包，剩余的宝宝凉屁股也能用",
+        1
+      ],
+      [
+        "已关注，求电子版",
+        1
+      ]
+    ]
+  },
+  "capture_limits": [
+    "本次为验证码风控恢复链路验证，只小批量抓取了少量评论/楼中楼。"
+  ],
+  "coverage": [
+    "已抓到一级评论 10 条",
+    "已抓取一级评论页数 1 页",
+    "一级评论可从 cursor 继续续抓：69b94d3b000000000f02b8b2"
+  ],
+  "capture": {
+    "top_level_pages_fetched": 1,
+    "top_level_comments_fetched": 10,
+    "top_level_cursor": "69b94d3b000000000f02b8b2",
+    "top_level_complete": false,
+    "top_level_stopped_reason": "page_limit_reached",
+    "top_level_verification_required": false,
+    "top_level_verify_message": "",
+    "subcomment_attempted": true,
+    "subcomment_threads_completed": 0,
+    "subcomment_threads_skipped": [
+      {
+        "comment_id": "67fc61fe000000001e0177d1",
+        "reason": "Captcha required: type=unknown, uuid=unknown",
+        "existing_embedded": 1,
+        "declared_sub_comment_count": 2
+      }
+    ],
+    "subcomment_resume_queue": [],
+    "subcomment_completed_ids": []
+  }
+}

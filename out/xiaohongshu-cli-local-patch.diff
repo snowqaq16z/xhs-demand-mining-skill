@@ -1,0 +1,170 @@
+diff --git a/xhs_cli/client_mixins.py b/xhs_cli/client_mixins.py
+index 9cc518a..324c278 100644
+--- a/xhs_cli/client_mixins.py
++++ b/xhs_cli/client_mixins.py
+@@ -193,33 +193,57 @@ class ReadingEndpointsMixin:
+         self,
+         note_id: str,
+         xsec_token: str = "",
+-        max_pages: int = 20,
++        max_pages: int | None = None,
++        start_cursor: str = "",
+     ) -> dict[str, Any]:
++        """Fetch top-level comments until exhausted, page cap reached, or verification blocks progress.
++
++        Returns partial progress instead of discarding everything when a captcha challenge
++        interrupts pagination. Callers can resume with the returned ``cursor``.
++        """
+         all_comments: list[dict[str, Any]] = []
+-        cursor = ""
++        cursor = start_cursor
+         pages = 0
++        stopped_reason = "completed"
++        verification_required = False
++        verify_message = ""
++
++        while max_pages is None or pages < max_pages:
++            try:
++                data = self.get_comments(note_id, cursor=cursor, xsec_token=xsec_token)
++            except NeedVerifyError as exc:
++                verification_required = True
++                stopped_reason = "verification_required"
++                verify_message = str(exc)
++                break
+ 
+-        while pages < max_pages:
+-            data = self.get_comments(note_id, cursor=cursor, xsec_token=xsec_token)
+             if not isinstance(data, dict):
++                stopped_reason = "unexpected_payload"
+                 break
+ 
+             comments = data.get("comments", [])
+             all_comments.extend(comments)
+             pages += 1
+ 
+-            has_more = data.get("has_more", False)
++            has_more = bool(data.get("has_more", False))
+             next_cursor = data.get("cursor", "")
+             if not has_more or not next_cursor:
++                cursor = ""
+                 break
+             cursor = next_cursor
++        else:
++            stopped_reason = "page_limit_reached"
+ 
++        has_more = bool(cursor)
+         return {
+             "comments": all_comments,
+-            "has_more": False,
+-            "cursor": "",
++            "has_more": has_more,
++            "cursor": cursor,
+             "total_fetched": len(all_comments),
+             "pages_fetched": pages,
++            "verification_required": verification_required,
++            "stopped_reason": stopped_reason,
++            "verify_message": verify_message,
+         }
+ 
+     def get_sub_comments(
+@@ -236,6 +260,60 @@ class ReadingEndpointsMixin:
+             "cursor": cursor,
+         })
+ 
++    def get_all_sub_comments(
++        self,
++        note_id: str,
++        root_comment_id: str,
++        num: int = 30,
++        max_pages: int | None = None,
++        start_cursor: str = "",
++    ) -> dict[str, Any]:
++        """Fetch replies for a single root comment with resume-friendly partial progress."""
++        all_comments: list[dict[str, Any]] = []
++        cursor = start_cursor
++        pages = 0
++        stopped_reason = "completed"
++        verification_required = False
++        verify_message = ""
++
++        while max_pages is None or pages < max_pages:
++            try:
++                data = self.get_sub_comments(note_id, root_comment_id, num=num, cursor=cursor)
++            except NeedVerifyError as exc:
++                verification_required = True
++                stopped_reason = "verification_required"
++                verify_message = str(exc)
++                break
++
++            if not isinstance(data, dict):
++                stopped_reason = "unexpected_payload"
++                break
++
++            comments = data.get("comments") or data.get("sub_comments") or []
++            all_comments.extend(comments)
++            pages += 1
++
++            has_more = bool(data.get("has_more", False))
++            next_cursor = data.get("cursor", "")
++            if not has_more or not next_cursor:
++                cursor = ""
++                break
++            cursor = next_cursor
++        else:
++            stopped_reason = "page_limit_reached"
++
++        has_more = bool(cursor)
++        return {
++            "comments": all_comments,
++            "has_more": has_more,
++            "cursor": cursor,
++            "total_fetched": len(all_comments),
++            "pages_fetched": pages,
++            "verification_required": verification_required,
++            "stopped_reason": stopped_reason,
++            "verify_message": verify_message,
++        }
++
+ 
+ class InteractionEndpointsMixin:
+     """Mutating note interaction endpoints."""
+diff --git a/xhs_cli/commands/reading.py b/xhs_cli/commands/reading.py
+index 0e702d7..effecde 100644
+--- a/xhs_cli/commands/reading.py
++++ b/xhs_cli/commands/reading.py
+@@ -104,11 +104,12 @@ def read(ctx, id_or_url: str, xsec_token: str, as_json: bool, as_yaml: bool):
+ @click.argument("id_or_url")
+ @click.option("--cursor", default="", help="Pagination cursor")
+ @click.option("--xsec-token", default="", help="Security token")
+-@click.option("--all", "fetch_all", is_flag=True, help="Auto-paginate to fetch ALL comments")
++@click.option("--all", "fetch_all", is_flag=True, help="Auto-paginate until exhausted or interrupted")
++@click.option("--max-pages", type=int, default=None, help="Optional page cap when using --all")
+ @structured_output_options
+ @click.pass_context
+-def comments(ctx, id_or_url: str, cursor: str, xsec_token: str, fetch_all: bool, as_json: bool, as_yaml: bool):
+-    """View comments on a note. Use --all to fetch all pages."""
++def comments(ctx, id_or_url: str, cursor: str, xsec_token: str, fetch_all: bool, max_pages: int | None, as_json: bool, as_yaml: bool):
++    """View comments on a note. Use --all to fetch all pages or as many as possible."""
+     note_id, url_token = parse_note_url(id_or_url)
+     token = xsec_token or url_token
+     if token:
+@@ -116,7 +117,7 @@ def comments(ctx, id_or_url: str, cursor: str, xsec_token: str, fetch_all: bool,
+ 
+     def _load_comments(client):
+         if fetch_all:
+-            return client.get_all_comments(note_id, xsec_token=token)
++            return client.get_all_comments(note_id, xsec_token=token, max_pages=max_pages, start_cursor=cursor)
+         return client.get_comments(note_id, cursor=cursor, xsec_token=token)
+ 
+     def _render_comments(data):
+@@ -125,6 +126,10 @@ def comments(ctx, id_or_url: str, cursor: str, xsec_token: str, fetch_all: bool,
+             total = data.get("total_fetched", 0)
+             pages = data.get("pages_fetched", 0)
+             print_info(f"Fetched {total} comments across {pages} pages")
++            if data.get("has_more") and data.get("cursor"):
++                print_info(f"Resume with --cursor {data['cursor']}")
++            if data.get("verification_required"):
++                print_info("Stopped by verification challenge; complete captcha in browser, then resume with the returned cursor")
+ 
+     try:
+         data = run_client_action(ctx, _load_comments)
